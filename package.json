@@ -1,14 +1,38 @@
 {
-  "name": "pollinations-image-bot",
+  "name": "minecraft-discord-panel",
   "version": "1.0.0",
-  "description": "Discord image generator bot using Pollinations.ai (free, no API key).",
+  "description": "Minecraft bot with Discord integration, web panel, and Gemini AI auto-replies",
   "main": "bot.js",
   "type": "module",
   "scripts": {
-    "start": "node bot.js"
+    "start": "node bot.js",
+    "dev": "nodemon bot.js"
   },
   "dependencies": {
-    "discord.js": "^14.16.3",
-    "dotenv": "^16.4.5"
-  }
+    "@discordjs/rest": "^2.3.0",
+    "axios": "^1.7.0",
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "http": "^0.0.1-security",
+    "mineflayer": "^4.16.2",
+    "node-fetch": "^3.3.2",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "minecraft",
+    "discord",
+    "bot",
+    "socket.io",
+    "express",
+    "gemini"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
 }
