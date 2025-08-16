@@ -1,5 +1,5 @@
-require('dotenv').config();
-
+import dotenv from "dotenv";
+dotenv.config();
 const mineflayer = require('mineflayer');
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const express = require('express');
@@ -556,3 +556,4 @@ discordClient.on('messageCreate', async (message) => {
 });
 
 discordClient.login(discordToken);
+
