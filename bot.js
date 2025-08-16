@@ -42,7 +42,7 @@ async function askGemini(content) {
 }
 
 // ================== Web Control Panel ==================
-pp.get('/', (req, res) => {
+app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html lang="en">
@@ -545,4 +545,5 @@ io.on('connection', socket => {
 // ================== Start Servers ==================
 server.listen(PORT, ()=>console.log(`🌐 Web server running on port ${PORT}`));
 discordClient.login(discordToken);
+
 
