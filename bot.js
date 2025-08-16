@@ -14,7 +14,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*' }
 });
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 const discordToken = process.env.DISCORD_TOKEN;
 const discordChannelId = process.env.DISCORD_CHANNEL_ID;
@@ -460,3 +460,4 @@ process.on('uncaughtException', (err) => console.error('UncaughtException:', err
 
 // تسجيل الدخول لديسكورد في النهاية
 discordClient.login(discordToken);
+
