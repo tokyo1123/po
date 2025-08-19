@@ -454,16 +454,28 @@ discordClient.on('interactionCreate', async interaction=>{
     return interaction.reply({ content:'❌ هذا الأمر غير مسموح هنا.', flags: 64 });
   }
 
-  if(name==='gn'){
-    const prompt = interaction.options.getString('prompt');
-    await interaction.deferReply();
-    try{
-      const imageUrl = buildImageUrl(prompt);
-      const res = await fetch(imageUrl);
-      const buffer = await res.arrayBuffer();
-      await interaction.editReply({ files:[{ attachment: Buffer.from(buffer), name:'image.png'}] });
-    } catch(e){ await interaction.editReply('❌ Error generating image'); }
+ if (name === 'gn') {
+  // ID القناة المسموح فيها الأمر
+  const allowedChannelId = "1407334966852845668"; // ضع هنا ID القناة
+
+  if (interaction.channelId !== allowedChannelId) {
+    return interaction.reply({ content: "❌ هذا الأمر مسموح فقط في الغرفة المخصصة.", ephemeral: true });
   }
+
+  const prompt = interaction.options.getString('prompt');
+  await interaction.deferReply();
+  try {
+    const imageUrl = buildImageUrl(prompt);
+    const res = await fetch(imageUrl);
+    const buffer = await res.arrayBuffer();
+
+    await interaction.editReply({
+      files: [{ attachment: Buffer.from(buffer), name: 'image.png' }]
+    });
+  } catch (e) {
+    await interaction.editReply('❌ Error generating image');
+  }
+}
   else if(name==='start'){ 
     if(!bot){ createBot(); await interaction.reply('Minecraft bot started'); } 
     else await interaction.reply('Bot already running'); 
@@ -546,4 +558,5 @@ io.on('connection', socket => {
 // ================== Start Servers ==================
 server.listen(PORT, ()=>console.log(`🌐 Web server running on port ${PORT}`));
 discordClient.login(discordToken);
+
 
