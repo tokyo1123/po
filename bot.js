@@ -345,7 +345,7 @@ function logMsg(msg, type='system') {
 function createBot() {
   bot = mineflayer.createBot({
     host: '',
-    port: ,
+    port:' ',
     username: '',
     version: '1.21.4',
     connectTimeout: 60000,
@@ -542,4 +542,5 @@ io.on('connection', socket => {
 // ================== Start Servers ==================
 server.listen(PORT, ()=>console.log(`🌐 Web server running on port ${PORT}`));
 discordClient.login(discordToken);
+
 
