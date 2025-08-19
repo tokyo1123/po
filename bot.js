@@ -1,7 +1,7 @@
+
 import 'dotenv/config';
 import mineflayer from 'mineflayer';
-import { Client, GatewayIntentBits, Partials, SlashCommandBuilder, Routes } from 'discord.js';
-import { REST } from '@discordjs/rest';
+import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -18,6 +18,7 @@ const discordToken = process.env.DISCORD_TOKEN;
 const discordChannelId = process.env.DISCORD_CHANNEL_ID;
 const AUTO_REPLY_CHANNEL = process.env.AUTO_REPLY_CHANNEL;
 const COMMAND_CHANNEL = process.env.COMMAND_CHANNEL;
+const GN_CHANNEL = process.env.GN_CHANNEL; // روم الصور لأمر gn
 const GEMINI_KEY = process.env.GEMINI_KEY;
 
 // ================== Gemini AI ==================
@@ -343,9 +344,9 @@ function logMsg(msg, type='system') {
 
 function createBot() {
   bot = mineflayer.createBot({
-    host: 'ITACHICRB.aternos.me',
-    port: 40355,
-    username: 'TOKyodot',
+    host: '',
+    port: ,
+    username: '',
     version: '1.21.4',
     connectTimeout: 60000,
     keepAlive: true
@@ -362,7 +363,7 @@ function createBot() {
     }
 
     if(!autoMessageInterval) autoMessageInterval = setInterval(()=>{ 
-      if(bot.chat) bot.chat('Welcome! Join Discord: https://discord.gg/E4XpZeywAJ'); 
+      if(bot.chat) bot.chat('Welcome to dla3a! Join Discord: https://discord.gg/RGjpJAXXJ5'); 
       logMsg('📢 Auto-message sent'); 
     }, 15*60*1000);
 
@@ -372,6 +373,16 @@ function createBot() {
 
   bot.on('chat', async (username, message) => {
     logMsg(`<${username}> ${message}`, 'chat');
+
+    // ================== *ask Gemini Command ==================
+    if(message.startsWith('!ask ')){
+      const question = message.slice(5).trim();
+      if(question.length > 0){
+        bot.chat('⏳ Thinking...');
+        const reply = await askGemini(question);
+        bot.chat(reply.slice(0,256)); // ماينكرافت الحد الأقصى تقريباً 256 حرف
+      }
+    }
 
     if(sendMinecraftToDiscord && discordClient.isReady() && discordChannelId){
       try {
@@ -425,101 +436,74 @@ function buildImageUrl(prompt, opts={}) {
   return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${q.toString()}`;
 }
 
-// ================== Slash Commands ==================
-const commands = [
-  new SlashCommandBuilder().setName('gn').setDescription('Generate an image').addStringOption(opt=>opt.setName('prompt').setDescription('Image description').setRequired(true)).toJSON(),
-  new SlashCommandBuilder().setName('start').setDescription('Start Minecraft bot').toJSON(),
-  new SlashCommandBuilder().setName('stop').setDescription('Stop Minecraft bot').toJSON(),
-  new SlashCommandBuilder().setName('rs').setDescription('Restart Minecraft bot').toJSON(),
-  new SlashCommandBuilder().setName('pn').setDescription('Toggle sending Minecraft chat to Discord').toJSON(),
-  new SlashCommandBuilder().setName('ping').setDescription('Check system status').toJSON()
-];
-
-discordClient.once('ready', async ()=>{
-  console.log(`✅ Logged in as ${discordClient.user.tag}`);
-  const rest = new REST({ version:'10' }).setToken(discordToken);
-  try { 
-    await rest.put(Routes.applicationGuildCommands(discordClient.user.id, process.env.GUILD_ID), { body: commands }); 
-    console.log('📌 All slash commands registered'); 
-  } catch(e){ console.error(e); }
-});
-
-// ================== Slash Command Handling ==================
-discordClient.on('interactionCreate', async interaction=>{
-  if(!interaction.isChatInputCommand()) return;
-  const name = interaction.commandName;
-
-  // التحقق من القناة المسموح فيها الأوامر
-  if(interaction.channelId !== COMMAND_CHANNEL && interaction.channelId !== discordChannelId && !interaction.channel?.isDMBased()){
-    return interaction.reply({ content:'❌ هذا الأمر غير مسموح هنا.', flags: 64 });
-  }
-
- if (name === 'gn') {
-  // ID القناة المسموح فيها الأمر
-  const allowedChannelId = "1407334966852845668"; // ضع هنا ID القناة
-
-  if (interaction.channelId !== allowedChannelId) {
-    return interaction.reply({ content: "❌ هذا الأمر مسموح فقط في الغرفة المخصصة.", ephemeral: true });
-  }
-
-  const prompt = interaction.options.getString('prompt');
-  await interaction.deferReply();
-  try {
-    const imageUrl = buildImageUrl(prompt);
-    const res = await fetch(imageUrl);
-    const buffer = await res.arrayBuffer();
-
-    await interaction.editReply({
-      files: [{ attachment: Buffer.from(buffer), name: 'image.png' }]
-    });
-  } catch (e) {
-    await interaction.editReply('❌ Error generating image');
-  }
-}
-  else if(name==='start'){ 
-    if(!bot){ createBot(); await interaction.reply('Minecraft bot started'); } 
-    else await interaction.reply('Bot already running'); 
-  }
-  else if(name==='stop'){ 
-    if(bot){ bot.quit('Stopped via Discord'); bot=null; botReady=false; clearInterval(autoMessageInterval); clearInterval(autoMoveInterval); autoMessageInterval=null; autoMoveInterval=null; await interaction.reply('Minecraft bot stopped'); } 
-    else await interaction.reply('Bot not running'); 
-  }
-  else if(name==='rs'){ 
-    if(bot){ bot.quit('Restarting...'); bot=null; botReady=false; clearInterval(autoMessageInterval); clearInterval(autoMoveInterval); autoMessageInterval=null; autoMoveInterval=null; setTimeout(()=>{createBot();},3000); await interaction.reply('Minecraft bot restarting...'); } 
-    else await interaction.reply('Bot not running'); 
-  }
-  else if(name==='pn'){ 
-    // السماح بأمر /pn فقط في القناة المخصصة لربط Minecraft → Discord
-    if(interaction.channelId !== discordChannelId){
-      return interaction.reply({ content:'❌ أمر /pn مسموح فقط في القناة المخصصة لربط Minecraft → Discord', flags: 64 });
-    }
-    sendMinecraftToDiscord = !sendMinecraftToDiscord; 
-    await interaction.reply(sendMinecraftToDiscord?'📩 Minecraft messages enabled':'🚫 Minecraft messages disabled'); 
-  }
-  else if(name==='ping'){ 
-    await interaction.reply(`📊 Status:\n- Discord: ${discordClient.isReady()?'✅':'❌'}\n- Minecraft: ${botReady?'✅':'❌'}`); 
-  }
-});
-
-// ================== Discord → Minecraft & Gemini Auto-reply ==================
+// ================== Discord → Minecraft & Gemini Auto-reply & Commands بالبرفكس * ==================
 discordClient.on('messageCreate', async message => {
   if(message.author.bot) return;
 
-  // Relay to Minecraft
-  if(message.channel.id === discordChannelId){
+  const content = message.content.trim();
+  const channelId = message.channel.id;
+
+  // ================== Minecraft relay ==================
+  if(channelId === discordChannelId){
     if(bot && botReady){
-      bot.chat(message.content);
-      logMsg(`[Discord → Minecraft] ${message.author.username}: ${message.content}`, 'chat');
+      bot.chat(content);
+      logMsg(`[Discord → Minecraft] ${message.author.username}: ${content}`, 'chat');
     } else {
-      messageQueue.push(message.content);
-      logMsg(`[Discord → Minecraft] Message queued: ${message.content}`, 'system');
+      messageQueue.push(content);
+      logMsg(`[Discord → Minecraft] Message queued: ${content}`, 'system');
     }
   }
 
-  // Gemini Auto-reply
-  if(message.channel.id === AUTO_REPLY_CHANNEL || message.channel.type === 1){
-    const answer = await askGemini(message.content);
+  // ================== Gemini Auto-reply ==================
+  if(channelId === AUTO_REPLY_CHANNEL || message.channel.type === 1){
+    const answer = await askGemini(content);
     message.reply(answer.slice(0,1900));
+  }
+
+  // ================== Commands with * prefix ==================
+  if(!content.startsWith('*')) return;
+  const args = content.slice(1).split(/ +/);
+  const cmd = args.shift().toLowerCase();
+
+  // أمر gn فقط في الروم المخصص
+  if(cmd === 'gn'){
+    if(channelId !== GN_CHANNEL){
+      return message.reply('❌ أمر *gn مسموح فقط في القناة المخصصة للصور');
+    }
+    const prompt = args.join(' ');
+    if(!prompt) return message.reply('❌ يرجى كتابة وصف للصورة');
+    try{
+      const imageUrl = buildImageUrl(prompt);
+      const res = await fetch(imageUrl);
+      const buffer = await res.arrayBuffer();
+      await message.reply({ files:[{ attachment: Buffer.from(buffer), name:'image.png'}] });
+    } catch(e){
+      message.reply('❌ Error generating image');
+    }
+  }
+
+  // أوامر الماينكرافت
+  else if(cmd === 'start'){
+    if(!bot){ createBot(); message.reply('Minecraft bot started'); } 
+    else message.reply('Bot already running'); 
+  }
+  else if(cmd === 'stop'){
+    if(bot){ bot.quit('Stopped via Discord'); bot=null; botReady=false; clearInterval(autoMessageInterval); clearInterval(autoMoveInterval); autoMessageInterval=null; autoMoveInterval=null; message.reply('Minecraft bot stopped'); } 
+    else message.reply('Bot not running'); 
+  }
+  else if(cmd === 'rs'){
+    if(bot){ bot.quit('Restarting...'); bot=null; botReady=false; clearInterval(autoMessageInterval); clearInterval(autoMoveInterval); autoMessageInterval=null; autoMoveInterval=null; setTimeout(()=>{createBot();},3000); message.reply('Minecraft bot restarting...'); } 
+    else message.reply('Bot not running'); 
+  }
+  else if(cmd === 'pn'){
+    if(channelId !== discordChannelId){
+      return message.reply('❌ أمر *pn مسموح فقط في القناة المخصصة لربط Minecraft → Discord');
+    }
+    sendMinecraftToDiscord = !sendMinecraftToDiscord;
+    message.reply(sendMinecraftToDiscord?'📩 Minecraft messages enabled':'🚫 Minecraft messages disabled');
+  }
+  else if(cmd === 'ping'){
+    message.reply(`📊 Status:\n- Discord: ${discordClient.isReady()?'✅':'❌'}\n- Minecraft: ${botReady?'✅':'❌'}`);
   }
 });
 
@@ -558,5 +542,4 @@ io.on('connection', socket => {
 // ================== Start Servers ==================
 server.listen(PORT, ()=>console.log(`🌐 Web server running on port ${PORT}`));
 discordClient.login(discordToken);
-
 
