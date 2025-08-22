@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import mineflayer from 'mineflayer';
-import { Client, GatewayIntentBits, Partials } from 'discord.js';
+import { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } from 'discord.js';
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -18,7 +18,7 @@ const discordToken = process.env.DISCORD_TOKEN;
 const discordChannelId = process.env.DISCORD_CHANNEL_ID;
 const AUTO_REPLY_CHANNEL = process.env.AUTO_REPLY_CHANNEL;
 const COMMAND_CHANNEL = process.env.COMMAND_CHANNEL;
-const GN_CHANNEL = process.env.GN_CHANNEL; // روم الصور لأمر gn
+const GN_CHANNEL = process.env.GN_CHANNEL;
 const GEMINI_KEY = process.env.GEMINI_KEY;
 
 // ================== Gemini AI ==================
@@ -75,7 +75,7 @@ function logMsg(msg, type='system') {
 function createBot() {
   bot = mineflayer.createBot({
     host: '',
-    port:' ',
+    port: '',
     username: '',
     version: '1.21.4',
     connectTimeout: 60000,
@@ -151,8 +151,8 @@ const discordClient = new Client({
   partials: [Partials.Channel]
 });
 
-// ================== Roulette Game ==================
-const roulettePlayers = new Map(); // username => color
+// ================== لعبة روليت ==================
+const roulettePlayers = new Map();
 
 function getRandomColor() {
   const colors = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22','#1abc9c','#34495e'];
@@ -201,44 +201,81 @@ async function generateRouletteImage(players) {
   return canvas.toBuffer();
 }
 
-// ================== Discord Commands ==================
+// ================== أوامر ديسكورد ==================
 discordClient.on('messageCreate', async message => {
   if(message.author.bot) return;
   const content = message.content.trim();
   const args = content.split(' ');
   const cmd = args.shift().toLowerCase();
 
-  if(cmd === '*join'){
-    if(roulettePlayers.has(message.author.username)){
-      return message.reply('✅ أنت بالفعل مشارك!');
-    }
-    roulettePlayers.set(message.author.username, getRandomColor());
+  if(cmd === '*ro'){
     const img = await generateRouletteImage(roulettePlayers);
-    await message.channel.send({ content: `🎯 ${message.author.username} انضم!`, files:[{ attachment: img, name: 'roulette.png'}] });
+    const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
+
+    const joinBtn = new ButtonBuilder().setCustomId('join').setLabel('✅ انضم').setStyle(ButtonStyle.Success);
+    const leaveBtn = new ButtonBuilder().setCustomId('leave').setLabel('🚪 خروج').setStyle(ButtonStyle.Danger);
+    const startBtn = new ButtonBuilder().setCustomId('start').setLabel('🎯 ابدأ').setStyle(ButtonStyle.Primary);
+
+    const row = new ActionRowBuilder().addComponents(joinBtn, leaveBtn, startBtn);
+    await message.channel.send({ content: '🎮 لعبة الروليت بدأت! اضغط للانضمام:', files: [attachment], components: [row] });
+  }
+});
+
+discordClient.on('interactionCreate', async interaction => {
+  if(!interaction.isButton()) return;
+
+  if(interaction.customId === 'join'){
+    if(roulettePlayers.has(interaction.user.username)){
+      return interaction.reply({ content: '✅ أنت بالفعل مشارك!', ephemeral: true });
+    }
+    roulettePlayers.set(interaction.user.username, getRandomColor());
   }
 
-  if(cmd === '*leave'){
-    if(!roulettePlayers.has(message.author.username)){
-      return message.reply('❌ أنت لست مشارك!');
+  if(interaction.customId === 'leave'){
+    if(!roulettePlayers.has(interaction.user.username)){
+      return interaction.reply({ content: '❌ لست مشارك!', ephemeral: true });
     }
-    roulettePlayers.delete(message.author.username);
-    const img = await generateRouletteImage(roulettePlayers);
-    await message.channel.send({ content: `🚪 ${message.author.username} غادر!`, files:[{ attachment: img, name: 'roulette.png'}] });
+    roulettePlayers.delete(interaction.user.username);
   }
 
-  if(cmd === '*start'){
+  if(interaction.customId === 'start'){
     if(roulettePlayers.size < 2){
-      return message.reply('❌ يجب أن يكون هناك شخصان على الأقل!');
+      return interaction.reply({ content: '❌ يجب أن يكون هناك شخصان على الأقل!', ephemeral: true });
     }
     const keys = [...roulettePlayers.keys()];
     const loser = keys[Math.floor(Math.random() * keys.length)];
     roulettePlayers.delete(loser);
+
     const img = await generateRouletteImage(roulettePlayers);
-    await message.channel.send({ content: `💥 تم اختيار: **${loser}**`, files:[{ attachment: img, name: 'roulette.png'}] });
+    const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
+
+    const buttons = new ActionRowBuilder();
+    for(const player of roulettePlayers.keys()){
+      buttons.addComponents(new ButtonBuilder().setCustomId(`kick_${player}`).setLabel(`🚫 ${player}`).setStyle(ButtonStyle.Secondary));
+    }
+
+    await interaction.reply({ content: `💥 تم اختيار: **${loser}**\nمن ستقصي؟`, files: [attachment], components: [buttons] });
+    return;
   }
 
-  // باقي أوامرك (gn, ping, إلخ) تبقى كما هي
-  // أمر gn فقط في الروم المخصص
+  if(interaction.customId.startsWith('kick_')){
+    const target = interaction.customId.replace('kick_', '');
+    if(!roulettePlayers.has(target)){
+      return interaction.reply({ content: '❌ اللاعب غير موجود!', ephemeral: true });
+    }
+    roulettePlayers.delete(target);
+
+    const img = await generateRouletteImage(roulettePlayers);
+    const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
+
+    await interaction.update({ content: `🚫 تم إقصاء: **${target}**`, files: [attachment], components: [] });
+  }
+
+  // تحديث الصورة بعد أي تغيير (Join / Leave)
+  const img = await generateRouletteImage(roulettePlayers);
+  const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
+  await interaction.message.edit({ files: [attachment] });
+// أمر gn فقط في الروم المخصص
   if(cmd === 'gn'){
     if(channelId !== GN_CHANNEL){
       return message.reply('❌ أمر *gn مسموح فقط في القناة المخصصة للصور');
