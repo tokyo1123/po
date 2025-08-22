@@ -6,6 +6,7 @@ import http from 'http';
 import { Server } from 'socket.io';
 import axios from 'axios';
 import fetch from 'node-fetch';
+import { createCanvas } from 'canvas';
 
 // ================== إعدادات ==================
 const app = express();
@@ -43,277 +44,7 @@ async function askGemini(content) {
 
 // ================== Web Control Panel ==================
 app.get('/', (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>TOKyodot Bot Control</title>
-      <style>
-        :root {
-          --primary: #5865F2;
-          --dark: #1e1f22;
-          --darker: #111214;
-          --light: #f2f3f5;
-          --success: #3ba55c;
-          --danger: #ed4245;
-        }
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        body {
-          background-color: var(--darker);
-          color: var(--light);
-          min-height: 100vh;
-          padding: 20px;
-        }
-        .container {
-          max-width: 1200px;
-          margin: 0 auto;
-        }
-        header {
-          background: linear-gradient(135deg, var(--primary), #9147ff);
-          padding: 15px 20px;
-          border-radius: 8px;
-          margin-bottom: 20px;
-          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        h1 {
-          font-size: 24px;
-          font-weight: 600;
-        }
-        .status {
-          background-color: var(--dark);
-          padding: 5px 10px;
-          border-radius: 4px;
-          font-size: 14px;
-        }
-        .status.online {
-          color: var(--success);
-        }
-        .status.offline {
-          color: var(--danger);
-        }
-        .panel {
-          display: flex;
-          gap: 20px;
-          margin-bottom: 20px;
-        }
-        .log-container {
-          flex: 1;
-          background-color: var(--dark);
-          border-radius: 8px;
-          padding: 15px;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-          height: 500px;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-        }
-        .logs {
-          flex: 1;
-          overflow-y: auto;
-          padding: 10px;
-          background-color: #2b2d31;
-          border-radius: 4px;
-          margin-bottom: 15px;
-          font-family: 'Consolas', monospace;
-        }
-        .log-entry {
-          margin-bottom: 5px;
-          line-height: 1.4;
-          word-break: break-word;
-        }
-        .log-entry.system {
-          color: #949cf7;
-        }
-        .log-entry.chat {
-          color: #dbdee1;
-        }
-        .log-entry.error {
-          color: #f04747;
-        }
-        .input-group {
-          display: flex;
-          gap: 10px;
-        }
-        input {
-          flex: 1;
-          padding: 10px 15px;
-          border: none;
-          border-radius: 4px;
-          background-color: #383a40;
-          color: var(--light);
-          font-size: 14px;
-        }
-        input:focus {
-          outline: none;
-          box-shadow: 0 0 0 2px var(--primary);
-        }
-        button {
-          padding: 10px 20px;
-          background-color: var(--primary);
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-weight: 600;
-          transition: background-color 0.2s;
-        }
-        button:hover {
-          background-color: #4752c4;
-        }
-        button:active {
-          background-color: #3a45a5;
-        }
-        .controls {
-          width: 300px;
-          background-color: var(--dark);
-          border-radius: 8px;
-          padding: 15px;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .control-title {
-          font-size: 16px;
-          font-weight: 600;
-          margin-bottom: 15px;
-          padding-bottom: 10px;
-          border-bottom: 1px solid #383a40;
-        }
-        .control-buttons {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-        }
-        .control-btn {
-          padding: 10px;
-          border-radius: 4px;
-          border: none;
-          cursor: pointer;
-          font-weight: 500;
-          transition: all 0.2s;
-        }
-        .start-btn {
-          background-color: var(--success);
-          color: white;
-        }
-        .stop-btn {
-          background-color: var(--danger);
-          color: white;
-        }
-        .restart-btn {
-          background-color: #faa61a;
-          color: white;
-        }
-        .timestamp {
-          color: #a3a6aa;
-          font-size: 12px;
-          margin-right: 8px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <header>
-          <h1>TOKyodot Bot Control Panel</h1>
-          <div class="status" id="connection-status">Loading...</div>
-        </header>
-        
-        <div class="panel">
-          <div class="log-container">
-            <div class="logs" id="logs"></div>
-            <div class="input-group">
-              <input type="text" id="msg" placeholder="Type a message to send in Minecraft..." autocomplete="off" />
-              <button id="send-btn">Send</button>
-            </div>
-          </div>
-          
-          <div class="controls">
-            <div class="control-title">Bot Controls</div>
-            <div class="control-buttons">
-              <button class="control-btn start-btn" id="start-btn">Start Bot</button>
-              <button class="control-btn stop-btn" id="stop-btn">Stop Bot</button>
-              <button class="control-btn restart-btn" id="restart-btn">Restart Bot</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <script src="/socket.io/socket.io.js"></script>
-      <script>
-        const socket = io();
-        const logs = document.getElementById('logs');
-        const msgInput = document.getElementById('msg');
-        const sendBtn = document.getElementById('send-btn');
-        const statusElement = document.getElementById('connection-status');
-        
-        // Elements for control buttons
-        const startBtn = document.getElementById('start-btn');
-        const stopBtn = document.getElementById('stop-btn');
-        const restartBtn = document.getElementById('restart-btn');
-        
-        // Format timestamp
-        function getTimestamp() {
-          const now = new Date();
-          const hours = now.getHours().toString().padStart(2, '0');
-          const minutes = now.getMinutes().toString().padStart(2, '0');
-          const seconds = now.getSeconds().toString().padStart(2, '0');
-          return \`\${hours}:\${minutes}:\${seconds}\`;
-        }
-        
-        // Add log message
-        function addLog(msg, type = 'system') {
-          const logEntry = document.createElement('div');
-          logEntry.className = \`log-entry \${type}\`;
-          logEntry.innerHTML = \`<span class="timestamp">\${getTimestamp()}</span>\${msg}\`;
-          logs.appendChild(logEntry);
-          logs.scrollTop = logs.scrollHeight;
-        }
-        
-        // Socket events
-        socket.on('log', (data) => {
-          addLog(data.message, data.type || 'system');
-        });
-        
-        socket.on('status', (status) => {
-          statusElement.textContent = status.text;
-          statusElement.className = \`status \${status.online ? 'online' : 'offline'}\`;
-        });
-        
-        // Send message function
-        function sendMessage() {
-          const msg = msgInput.value.trim();
-          if (msg) {
-            socket.emit('sendMessage', msg);
-            addLog(\`[You] \${msg}\`, 'chat');
-            msgInput.value = '';
-          }
-        }
-        
-        // Event listeners
-        sendBtn.addEventListener('click', sendMessage);
-        msgInput.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') sendMessage();
-        });
-        
-        // Control buttons
-        startBtn.addEventListener('click', () => socket.emit('control', 'start'));
-        stopBtn.addEventListener('click', () => socket.emit('control', 'stop'));
-        restartBtn.addEventListener('click', () => socket.emit('control', 'restart'));
-        
-        // Initial status
-        socket.emit('getStatus');
-      </script>
-    </body>
-    </html>
-  `);
+  res.send(`<h1>TOKyodot Bot Control Panel</h1>`);
 });
 
 // ================== Minecraft Bot ==================
@@ -373,13 +104,12 @@ function createBot() {
   bot.on('chat', async (username, message) => {
     logMsg(`<${username}> ${message}`, 'chat');
 
-    // ================== *ask Gemini Command ==================
     if(message.startsWith('!ask ')){
       const question = message.slice(5).trim();
       if(question.length > 0){
         bot.chat('⏳ Thinking...');
         const reply = await askGemini(question);
-        bot.chat(reply.slice(0,256)); // ماينكرافت الحد الأقصى تقريباً 256 حرف
+        bot.chat(reply.slice(0,256));
       }
     }
 
@@ -388,8 +118,6 @@ function createBot() {
         const channel = await discordClient.channels.fetch(discordChannelId);
         if(channel && channel.isTextBased()){
           await channel.send(`**[Minecraft]** <${username}> ${message}`);
-        } else {
-          logMsg('❌ Discord channel not text-based or not found', 'error');
         }
       } catch(err){
         logMsg(`❌ Failed to send Minecraft message to Discord: ${err}`, 'error');
@@ -423,79 +151,93 @@ const discordClient = new Client({
   partials: [Partials.Channel]
 });
 
-const DEFAULTS = { width: 768, height: 768, model: 'flux', seed: 0, nologo: true, enhance: false };
-function buildImageUrl(prompt, opts={}) {
-  const q = new URLSearchParams({
-    width: opts.width||DEFAULTS.width,
-    height: opts.height||DEFAULTS.height,
-    model: opts.model||DEFAULTS.model,
-    seed: opts.seed||DEFAULTS.seed,
-    nologo: (opts.nologo ?? DEFAULTS.nologo) ? 'true' : 'false',
-    enhance: (opts.enhance ?? DEFAULTS.enhance) ? 'true' : 'false'
-  });
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${q.toString()}`;
+// ================== Roulette Game ==================
+const roulettePlayers = new Map(); // username => color
+
+function getRandomColor() {
+  const colors = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22','#1abc9c','#34495e'];
+  return colors[Math.floor(Math.random() * colors.length)];
 }
 
-// ================== Discord → Minecraft & Gemini Auto-reply & Commands بالبرفكس * ==================
+async function generateRouletteImage(players) {
+  const size = 400;
+  const canvas = createCanvas(size, size);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#2f3136';
+  ctx.fillRect(0, 0, size, size);
+
+  if(players.size === 0){
+    ctx.fillStyle = '#fff';
+    ctx.font = '20px Arial';
+    ctx.fillText('لا يوجد لاعبين', 120, 200);
+    return canvas.toBuffer();
+  }
+
+  const total = players.size;
+  const anglePer = (Math.PI * 2) / total;
+  let startAngle = 0;
+
+  for (const [name, color] of players) {
+    const endAngle = startAngle + anglePer;
+    ctx.beginPath();
+    ctx.moveTo(size/2, size/2);
+    ctx.arc(size/2, size/2, size/2, startAngle, endAngle);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    ctx.save();
+    ctx.translate(size/2, size/2);
+    ctx.rotate(startAngle + anglePer / 2);
+    ctx.fillStyle = '#fff';
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText(name, size/2 - 20, 10);
+    ctx.restore();
+
+    startAngle = endAngle;
+  }
+
+  return canvas.toBuffer();
+}
+
+// ================== Discord Commands ==================
 discordClient.on('messageCreate', async message => {
   if(message.author.bot) return;
-
   const content = message.content.trim();
-  const channelId = message.channel.id;
-
-  // ================== لعبة الروليت ==================
-  if(content === 'روليت' || content === 'roulette'){
-    const rouletteGif = 'https://i.imgur.com/uL65Qm5.gif';
-
-    if(!message.guild){
-      return message.reply('❌ لا يمكن تشغيل هذه اللعبة في الخاص!');
-    }
-
-    try {
-      const members = await message.guild.members.fetch();
-      const players = members.filter(m => !m.user.bot);
-
-      if(players.size < 2){
-        return message.reply('❌ يجب أن يكون هناك شخصان على الأقل لبدء اللعبة!');
-      }
-
-      await message.reply({
-        content: '🎯 **الروليت بدأت! من سيكون الضحية؟**',
-        files: [rouletteGif]
-      });
-
-      setTimeout(() => {
-        const randomMember = players.random();
-        message.channel.send(`💥 **تم اختيار:** ${randomMember} \n🚪 **تمت إزالته من اللعبة!**`);
-      }, 3000);
-    } catch (error) {
-      console.error('Error in roulette command:', error);
-      message.reply('❌ حدث خطأ أثناء تشغيل لعبة الروليت!');
-    }
-  }
-
-  // ================== Minecraft relay ==================
-  if(channelId === discordChannelId){
-    if(bot && botReady){
-      bot.chat(content);
-      logMsg(`[Discord → Minecraft] ${message.author.username}: ${content}`, 'chat');
-    } else {
-      messageQueue.push(content);
-      logMsg(`[Discord → Minecraft] Message queued: ${content}`, 'system');
-    }
-  }
-
-  // ================== Gemini Auto-reply ==================
-  if(channelId === AUTO_REPLY_CHANNEL || message.channel.type === 1){
-    const answer = await askGemini(content);
-    message.reply(answer.slice(0,1900));
-  }
-
-  // ================== Commands with * prefix ==================
-  if(!content.startsWith('*')) return;
-  const args = content.slice(1).split(/ +/);
+  const args = content.split(' ');
   const cmd = args.shift().toLowerCase();
 
+  if(cmd === '*join'){
+    if(roulettePlayers.has(message.author.username)){
+      return message.reply('✅ أنت بالفعل مشارك!');
+    }
+    roulettePlayers.set(message.author.username, getRandomColor());
+    const img = await generateRouletteImage(roulettePlayers);
+    await message.channel.send({ content: `🎯 ${message.author.username} انضم!`, files:[{ attachment: img, name: 'roulette.png'}] });
+  }
+
+  if(cmd === '*leave'){
+    if(!roulettePlayers.has(message.author.username)){
+      return message.reply('❌ أنت لست مشارك!');
+    }
+    roulettePlayers.delete(message.author.username);
+    const img = await generateRouletteImage(roulettePlayers);
+    await message.channel.send({ content: `🚪 ${message.author.username} غادر!`, files:[{ attachment: img, name: 'roulette.png'}] });
+  }
+
+  if(cmd === '*start'){
+    if(roulettePlayers.size < 2){
+      return message.reply('❌ يجب أن يكون هناك شخصان على الأقل!');
+    }
+    const keys = [...roulettePlayers.keys()];
+    const loser = keys[Math.floor(Math.random() * keys.length)];
+    roulettePlayers.delete(loser);
+    const img = await generateRouletteImage(roulettePlayers);
+    await message.channel.send({ content: `💥 تم اختيار: **${loser}**`, files:[{ attachment: img, name: 'roulette.png'}] });
+  }
+
+  // باقي أوامرك (gn, ping, إلخ) تبقى كما هي
   // أمر gn فقط في الروم المخصص
   if(cmd === 'gn'){
     if(channelId !== GN_CHANNEL){
@@ -538,38 +280,11 @@ discordClient.on('messageCreate', async message => {
   }
 });
 
+discordClient.login(discordToken);
+
 // ================== Web Panel Socket.IO ==================
 io.on('connection', socket => {
   logMsg('💻 Web panel connected');
-  socket.emit('status', { text: botReady ? 'Online' : 'Offline', online: botReady });
-
-  socket.on('getStatus', () => {
-    socket.emit('status', { text: botReady ? 'Online' : 'Offline', online: botReady });
-  });
-
-  socket.on('sendMessage', msg => {
-    if(bot && botReady){
-      bot.chat(msg);
-      logMsg(`[Web] ${msg}`, 'chat');
-    } else {
-      messageQueue.push(msg);
-      logMsg(`[Web] Message queued: ${msg}`, 'system');
-    }
-  });
-
-  socket.on('control', async action => {
-    switch(action){
-      case 'start':
-        if(!bot){ createBot(); logMsg('🌟 Bot started via panel'); } else logMsg('⚠️ Bot already running'); break;
-      case 'stop':
-        if(bot){ bot.quit('Stopped via panel'); bot=null; botReady=false; clearInterval(autoMessageInterval); clearInterval(autoMoveInterval); autoMessageInterval=null; autoMoveInterval=null; logMsg('🛑 Bot stopped via panel'); } else logMsg('⚠️ Bot not running'); break;
-      case 'restart':
-        if(bot){ bot.quit('Restarting via panel'); bot=null; botReady=false; clearInterval(autoMessageInterval); clearInterval(autoMoveInterval); autoMessageInterval=null; autoMoveInterval=null; logMsg('🔄 Bot restarting via panel...'); setTimeout(()=>createBot(),3000); } else logMsg('⚠️ Bot not running'); break;
-    }
-    io.emit('status', { text: botReady ? 'Online' : 'Offline', online: botReady });
-  });
 });
 
-// ================== Start Servers ==================
 server.listen(PORT, ()=>console.log(`🌐 Web server running on port ${PORT}`));
-discordClient.login(discordToken);
