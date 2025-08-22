@@ -1,4 +1,3 @@
-
 import 'dotenv/config';
 import mineflayer from 'mineflayer';
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
@@ -418,7 +417,8 @@ const discordClient = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.DirectMessages
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildMembers
   ],
   partials: [Partials.Channel]
 });
@@ -443,36 +443,36 @@ discordClient.on('messageCreate', async message => {
   const content = message.content.trim();
   const channelId = message.channel.id;
 
-    // 🎯 لعبة روليت الإقصاء
-  else if(cmd === 'روليت' || cmd === 'roulette'){
+  // ================== لعبة الروليت ==================
+  if(content === 'روليت' || content === 'roulette'){
     const rouletteGif = 'https://i.imgur.com/uL65Qm5.gif';
 
-    // تحقق من أن الأمر في سيرفر وليس في DM
     if(!message.guild){
       return message.reply('❌ لا يمكن تشغيل هذه اللعبة في الخاص!');
     }
 
-    // جلب جميع الأعضاء القابلين للذكر (غير البوتات)
-    const members = await message.guild.members.fetch();
-    const players = members.filter(m => !m.user.bot);
+    try {
+      const members = await message.guild.members.fetch();
+      const players = members.filter(m => !m.user.bot);
 
-    if(players.size < 2){
-      return message.reply('❌ يجب أن يكون هناك شخصان على الأقل لبدء اللعبة!');
+      if(players.size < 2){
+        return message.reply('❌ يجب أن يكون هناك شخصان على الأقل لبدء اللعبة!');
+      }
+
+      await message.reply({
+        content: '🎯 **الروليت بدأت! من سيكون الضحية؟**',
+        files: [rouletteGif]
+      });
+
+      setTimeout(() => {
+        const randomMember = players.random();
+        message.channel.send(`💥 **تم اختيار:** ${randomMember} \n🚪 **تمت إزالته من اللعبة!**`);
+      }, 3000);
+    } catch (error) {
+      console.error('Error in roulette command:', error);
+      message.reply('❌ حدث خطأ أثناء تشغيل لعبة الروليت!');
     }
-
-    // إرسال رسالة البدء + GIF
-    await message.reply({
-      content: '🎯 **الروليت بدأت! من سيكون الضحية؟**',
-      files: [rouletteGif]
-    });
-
-    // اختيار شخص عشوائي بعد 3 ثوانٍ
-    setTimeout(() => {
-      const randomMember = players.random();
-      message.channel.send(`💥 **تم اختيار:** ${randomMember} \n🚪 **تمت إزالته من اللعبة!**`);
-    }, 3000);
   }
-
 
   // ================== Minecraft relay ==================
   if(channelId === discordChannelId){
@@ -573,6 +573,3 @@ io.on('connection', socket => {
 // ================== Start Servers ==================
 server.listen(PORT, ()=>console.log(`🌐 Web server running on port ${PORT}`));
 discordClient.login(discordToken);
-
-
-
