@@ -201,13 +201,14 @@ async function generateRouletteImage(players) {
   return canvas.toBuffer();
 }
 
-// ================== أوامر ديسكورد ==================
+// ================== أوامر الديسكورد ==================
 discordClient.on('messageCreate', async message => {
   if (message.author.bot) return;
 
   const content = message.content.trim();
   const args = content.split(' ');
   const cmd = args.shift().toLowerCase();
+  const channelId = message.channel.id;
 
   if (cmd === '*ro') {
     const img = await generateRouletteImage(roulettePlayers);
@@ -220,63 +221,7 @@ discordClient.on('messageCreate', async message => {
     const row = new ActionRowBuilder().addComponents(joinBtn, leaveBtn, startBtn);
     await message.channel.send({ content: '🎮 لعبة الروليت بدأت! اضغط للانضمام:', files: [attachment], components: [row] });
   }
-});
 
-discordClient.on('interactionCreate', async interaction => {
-  if(!interaction.isButton()) return;
-
-  if(interaction.customId === 'join'){
-    if(roulettePlayers.has(interaction.user.username)){
-      return interaction.reply({ content: '✅ أنت بالفعل مشارك!', ephemeral: true });
-    }
-    roulettePlayers.set(interaction.user.username, getRandomColor());
-  }
-
-  if(interaction.customId === 'leave'){
-    if(!roulettePlayers.has(interaction.user.username)){
-      return interaction.reply({ content: '❌ لست مشارك!', ephemeral: true });
-    }
-    roulettePlayers.delete(interaction.user.username);
-  }
-
-  if(interaction.customId === 'start'){
-    if(roulettePlayers.size < 2){
-      return interaction.reply({ content: '❌ يجب أن يكون هناك شخصان على الأقل!', ephemeral: true });
-    }
-    const keys = [...roulettePlayers.keys()];
-    const loser = keys[Math.floor(Math.random() * keys.length)];
-    roulettePlayers.delete(loser);
-
-    const img = await generateRouletteImage(roulettePlayers);
-    const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
-
-    const buttons = new ActionRowBuilder();
-    for(const player of roulettePlayers.keys()){
-      buttons.addComponents(new ButtonBuilder().setCustomId(`kick_${player}`).setLabel(`🚫 ${player}`).setStyle(ButtonStyle.Secondary));
-    }
-
-    await interaction.reply({ content: `💥 تم اختيار: **${loser}**\nمن ستقصي؟`, files: [attachment], components: [buttons] });
-    return;
-  }
-
-  if(interaction.customId.startsWith('kick_')){
-    const target = interaction.customId.replace('kick_', '');
-    if(!roulettePlayers.has(target)){
-      return interaction.reply({ content: '❌ اللاعب غير موجود!', ephemeral: true });
-    }
-    roulettePlayers.delete(target);
-
-    const img = await generateRouletteImage(roulettePlayers);
-    const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
-
-    await interaction.update({ content: `🚫 تم إقصاء: **${target}**`, files: [attachment], components: [] });
-  }
-
-  // تحديث الصورة بعد أي تغيير (Join / Leave)
-  const img = await generateRouletteImage(roulettePlayers);
-  const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
-  await interaction.message.edit({ files: [attachment] });
-// أمر gn فقط في الروم المخصص
   if(cmd === 'gn'){
     if(channelId !== GN_CHANNEL){
       return message.reply('❌ أمر *gn مسموح فقط في القناة المخصصة للصور');
@@ -284,7 +229,7 @@ discordClient.on('interactionCreate', async interaction => {
     const prompt = args.join(' ');
     if(!prompt) return message.reply('❌ يرجى كتابة وصف للصورة');
     try{
-      const imageUrl = buildImageUrl(prompt);
+      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`;
       const res = await fetch(imageUrl);
       const buffer = await res.arrayBuffer();
       await message.reply({ files:[{ attachment: Buffer.from(buffer), name:'image.png'}] });
@@ -318,6 +263,71 @@ discordClient.on('interactionCreate', async interaction => {
   }
 });
 
+// ================== تفاعل الأزرار ==================
+discordClient.on('interactionCreate', async interaction => {
+  if(!interaction.isButton()) return;
+
+  if(interaction.customId === 'join'){
+    if(roulettePlayers.has(interaction.user.username)){
+      return interaction.reply({ content: '✅ أنت بالفعل مشارك!', ephemeral: true });
+    }
+    roulettePlayers.set(interaction.user.username, getRandomColor());
+  }
+
+  if(interaction.customId === 'leave'){
+    if(!roulettePlayers.has(interaction.user.username)){
+      return interaction.reply({ content: '❌ لست مشارك!', ephemeral: true });
+    }
+    roulettePlayers.delete(interaction.user.username);
+  }
+
+  if(interaction.customId === 'start'){
+    if(roulettePlayers.size < 2){
+      return interaction.reply({ content: '❌ يجب أن يكون هناك شخصان على الأقل!', ephemeral: true });
+    }
+    const keys = [...roulettePlayers.keys()];
+    const loser = keys[Math.floor(Math.random() * keys.length)];
+    roulettePlayers.delete(loser);
+
+    const img = await generateRouletteImage(roulettePlayers);
+    const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
+
+    // تقسيم الأزرار إلى صفوف من 5 أزرار
+    const rows = [];
+    let buttons = [];
+    for(const player of roulettePlayers.keys()){
+      buttons.push(new ButtonBuilder().setCustomId(`kick_${player}`).setLabel(`🚫 ${player}`).setStyle(ButtonStyle.Secondary));
+      if(buttons.length === 5){
+        rows.push(new ActionRowBuilder().addComponents(buttons));
+        buttons = [];
+      }
+    }
+    if(buttons.length > 0) rows.push(new ActionRowBuilder().addComponents(buttons));
+
+    await interaction.reply({ content: `💥 تم اختيار: **${loser}**\nمن ستقصي؟`, files: [attachment], components: rows });
+    return;
+  }
+
+  if(interaction.customId.startsWith('kick_')){
+    const target = interaction.customId.replace('kick_', '');
+    if(!roulettePlayers.has(target)){
+      return interaction.reply({ content: '❌ اللاعب غير موجود!', ephemeral: true });
+    }
+    roulettePlayers.delete(target);
+
+    const img = await generateRouletteImage(roulettePlayers);
+    const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
+
+    await interaction.update({ content: `🚫 تم إقصاء: **${target}**`, files: [attachment], components: [] });
+    return;
+  }
+
+  // تحديث الصورة بعد أي تغيير (Join / Leave)
+  const img = await generateRouletteImage(roulettePlayers);
+  const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
+  await interaction.message.edit({ files: [attachment] });
+});
+
 discordClient.login(discordToken);
 
 // ================== Web Panel Socket.IO ==================
@@ -326,4 +336,3 @@ io.on('connection', socket => {
 });
 
 server.listen(PORT, ()=>console.log(`🌐 Web server running on port ${PORT}`));
-
