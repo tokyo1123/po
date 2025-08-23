@@ -203,12 +203,13 @@ async function generateRouletteImage(players) {
 
 // ================== أوامر ديسكورد ==================
 discordClient.on('messageCreate', async message => {
-  if(message.author.bot) return;
+  if (message.author.bot) return;
+
   const content = message.content.trim();
   const args = content.split(' ');
   const cmd = args.shift().toLowerCase();
 
-  if(cmd === '*ro'){
+  if (cmd === '*ro') {
     const img = await generateRouletteImage(roulettePlayers);
     const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
 
@@ -325,3 +326,4 @@ io.on('connection', socket => {
 });
 
 server.listen(PORT, ()=>console.log(`🌐 Web server running on port ${PORT}`));
+
