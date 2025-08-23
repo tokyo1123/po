@@ -1,12 +1,11 @@
 import 'dotenv/config';
 import mineflayer from 'mineflayer';
-import { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } from 'discord.js';
+import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import axios from 'axios';
 import fetch from 'node-fetch';
-import { createCanvas } from 'canvas';
 
 // ================== إعدادات ==================
 const app = express();
@@ -18,7 +17,7 @@ const discordToken = process.env.DISCORD_TOKEN;
 const discordChannelId = process.env.DISCORD_CHANNEL_ID;
 const AUTO_REPLY_CHANNEL = process.env.AUTO_REPLY_CHANNEL;
 const COMMAND_CHANNEL = process.env.COMMAND_CHANNEL;
-const GN_CHANNEL = process.env.GN_CHANNEL;
+const GN_CHANNEL = process.env.GN_CHANNEL; // روم الصور لأمر gn
 const GEMINI_KEY = process.env.GEMINI_KEY;
 
 // ================== Gemini AI ==================
@@ -345,7 +344,7 @@ function logMsg(msg, type='system') {
 function createBot() {
   bot = mineflayer.createBot({
     host: 'HOSTEL_-server.aternos.me',
-    port: '52532',
+    port: 52532,
     username: 'HOSTEL',
     version: '1.21.4',
     connectTimeout: 60000,
@@ -363,7 +362,7 @@ function createBot() {
     }
 
     if(!autoMessageInterval) autoMessageInterval = setInterval(()=>{ 
-      if(bot.chat) bot.chat('Welcome to dla3a! Join Discord: https://discord.gg/RGjpJAXXJ5'); 
+      if(bot.chat) bot.chat('Welcome to HOSTEL! Join Discord: https://discord.gg/Hs2YmCq5Ew'); 
       logMsg('📢 Auto-message sent'); 
     }, 15*60*1000);
 
@@ -374,12 +373,13 @@ function createBot() {
   bot.on('chat', async (username, message) => {
     logMsg(`<${username}> ${message}`, 'chat');
 
+    // ================== *ask Gemini Command ==================
     if(message.startsWith('!ask ')){
       const question = message.slice(5).trim();
       if(question.length > 0){
         bot.chat('⏳ Thinking...');
         const reply = await askGemini(question);
-        bot.chat(reply.slice(0,256));
+        bot.chat(reply.slice(0,256)); // ماينكرافت الحد الأقصى تقريباً 256 حرف
       }
     }
 
@@ -388,6 +388,8 @@ function createBot() {
         const channel = await discordClient.channels.fetch(discordChannelId);
         if(channel && channel.isTextBased()){
           await channel.send(`**[Minecraft]** <${username}> ${message}`);
+        } else {
+          logMsg('❌ Discord channel not text-based or not found', 'error');
         }
       } catch(err){
         logMsg(`❌ Failed to send Minecraft message to Discord: ${err}`, 'error');
@@ -415,83 +417,54 @@ const discordClient = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.DirectMessages,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.DirectMessages
   ],
   partials: [Partials.Channel]
 });
 
-// ================== لعبة روليت ==================
-const roulettePlayers = new Map();
-
-function getRandomColor() {
-  const colors = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22','#1abc9c','#34495e'];
-  return colors[Math.floor(Math.random() * colors.length)];
+const DEFAULTS = { width: 768, height: 768, model: 'flux', seed: 0, nologo: true, enhance: false };
+function buildImageUrl(prompt, opts={}) {
+  const q = new URLSearchParams({
+    width: opts.width||DEFAULTS.width,
+    height: opts.height||DEFAULTS.height,
+    model: opts.model||DEFAULTS.model,
+    seed: opts.seed||DEFAULTS.seed,
+    nologo: (opts.nologo ?? DEFAULTS.nologo) ? 'true' : 'false',
+    enhance: (opts.enhance ?? DEFAULTS.enhance) ? 'true' : 'false'
+  });
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${q.toString()}`;
 }
 
-async function generateRouletteImage(players) {
-  const size = 400;
-  const canvas = createCanvas(size, size);
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#2f3136';
-  ctx.fillRect(0, 0, size, size);
-
-  if(players.size === 0){
-    ctx.fillStyle = '#fff';
-    ctx.font = '20px Arial';
-    ctx.fillText('لا يوجد لاعبين', 120, 200);
-    return canvas.toBuffer();
-  }
-
-  const total = players.size;
-  const anglePer = (Math.PI * 2) / total;
-  let startAngle = 0;
-
-  for (const [name, color] of players) {
-    const endAngle = startAngle + anglePer;
-    ctx.beginPath();
-    ctx.moveTo(size/2, size/2);
-    ctx.arc(size/2, size/2, size/2, startAngle, endAngle);
-    ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.fill();
-
-    ctx.save();
-    ctx.translate(size/2, size/2);
-    ctx.rotate(startAngle + anglePer / 2);
-    ctx.fillStyle = '#fff';
-    ctx.font = '16px Arial';
-    ctx.textAlign = 'right';
-    ctx.fillText(name, size/2 - 20, 10);
-    ctx.restore();
-
-    startAngle = endAngle;
-  }
-
-  return canvas.toBuffer();
-}
-
-// ================== أوامر الديسكورد ==================
+// ================== Discord → Minecraft & Gemini Auto-reply & Commands بالبرفكس * ==================
 discordClient.on('messageCreate', async message => {
-  if (message.author.bot) return;
+  if(message.author.bot) return;
 
   const content = message.content.trim();
-  const args = content.split(' ');
-  const cmd = args.shift().toLowerCase();
   const channelId = message.channel.id;
 
-  if (cmd === '*ro') {
-    const img = await generateRouletteImage(roulettePlayers);
-    const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
-
-    const joinBtn = new ButtonBuilder().setCustomId('join').setLabel('✅ انضم').setStyle(ButtonStyle.Success);
-    const leaveBtn = new ButtonBuilder().setCustomId('leave').setLabel('🚪 خروج').setStyle(ButtonStyle.Danger);
-    const startBtn = new ButtonBuilder().setCustomId('start').setLabel('🎯 ابدأ').setStyle(ButtonStyle.Primary);
-
-    const row = new ActionRowBuilder().addComponents(joinBtn, leaveBtn, startBtn);
-    await message.channel.send({ content: '🎮 لعبة الروليت بدأت! اضغط للانضمام:', files: [attachment], components: [row] });
+  // ================== Minecraft relay ==================
+  if(channelId === discordChannelId){
+    if(bot && botReady){
+      bot.chat(content);
+      logMsg(`[Discord → Minecraft] ${message.author.username}: ${content}`, 'chat');
+    } else {
+      messageQueue.push(content);
+      logMsg(`[Discord → Minecraft] Message queued: ${content}`, 'system');
+    }
   }
 
+  // ================== Gemini Auto-reply ==================
+  if(channelId === AUTO_REPLY_CHANNEL || message.channel.type === 1){
+    const answer = await askGemini(content);
+    message.reply(answer.slice(0,1900));
+  }
+
+  // ================== Commands with * prefix ==================
+  if(!content.startsWith('*')) return;
+  const args = content.slice(1).split(/ +/);
+  const cmd = args.shift().toLowerCase();
+
+  // أمر gn فقط في الروم المخصص
   if(cmd === 'gn'){
     if(channelId !== GN_CHANNEL){
       return message.reply('❌ أمر *gn مسموح فقط في القناة المخصصة للصور');
@@ -499,7 +472,7 @@ discordClient.on('messageCreate', async message => {
     const prompt = args.join(' ');
     if(!prompt) return message.reply('❌ يرجى كتابة وصف للصورة');
     try{
-      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`;
+      const imageUrl = buildImageUrl(prompt);
       const res = await fetch(imageUrl);
       const buffer = await res.arrayBuffer();
       await message.reply({ files:[{ attachment: Buffer.from(buffer), name:'image.png'}] });
@@ -533,77 +506,40 @@ discordClient.on('messageCreate', async message => {
   }
 });
 
-// ================== تفاعل الأزرار ==================
-discordClient.on('interactionCreate', async interaction => {
-  if(!interaction.isButton()) return;
-
-  if(interaction.customId === 'join'){
-    if(roulettePlayers.has(interaction.user.username)){
-      return interaction.reply({ content: '✅ أنت بالفعل مشارك!', ephemeral: true });
-    }
-    roulettePlayers.set(interaction.user.username, getRandomColor());
-  }
-
-  if(interaction.customId === 'leave'){
-    if(!roulettePlayers.has(interaction.user.username)){
-      return interaction.reply({ content: '❌ لست مشارك!', ephemeral: true });
-    }
-    roulettePlayers.delete(interaction.user.username);
-  }
-
-  if(interaction.customId === 'start'){
-    if(roulettePlayers.size < 2){
-      return interaction.reply({ content: '❌ يجب أن يكون هناك شخصان على الأقل!', ephemeral: true });
-    }
-    const keys = [...roulettePlayers.keys()];
-    const loser = keys[Math.floor(Math.random() * keys.length)];
-    roulettePlayers.delete(loser);
-
-    const img = await generateRouletteImage(roulettePlayers);
-    const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
-
-    // تقسيم الأزرار إلى صفوف من 5 أزرار
-    const rows = [];
-    let buttons = [];
-    for(const player of roulettePlayers.keys()){
-      buttons.push(new ButtonBuilder().setCustomId(`kick_${player}`).setLabel(`🚫 ${player}`).setStyle(ButtonStyle.Secondary));
-      if(buttons.length === 5){
-        rows.push(new ActionRowBuilder().addComponents(buttons));
-        buttons = [];
-      }
-    }
-    if(buttons.length > 0) rows.push(new ActionRowBuilder().addComponents(buttons));
-
-    await interaction.reply({ content: `💥 تم اختيار: **${loser}**\nمن ستقصي؟`, files: [attachment], components: rows });
-    return;
-  }
-
-  if(interaction.customId.startsWith('kick_')){
-    const target = interaction.customId.replace('kick_', '');
-    if(!roulettePlayers.has(target)){
-      return interaction.reply({ content: '❌ اللاعب غير موجود!', ephemeral: true });
-    }
-    roulettePlayers.delete(target);
-
-    const img = await generateRouletteImage(roulettePlayers);
-    const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
-
-    await interaction.update({ content: `🚫 تم إقصاء: **${target}**`, files: [attachment], components: [] });
-    return;
-  }
-
-  // تحديث الصورة بعد أي تغيير (Join / Leave)
-  const img = await generateRouletteImage(roulettePlayers);
-  const attachment = new AttachmentBuilder(img, { name: 'roulette.png' });
-  await interaction.message.edit({ files: [attachment] });
-});
-
-discordClient.login(discordToken);
-
 // ================== Web Panel Socket.IO ==================
 io.on('connection', socket => {
   logMsg('💻 Web panel connected');
+  socket.emit('status', { text: botReady ? 'Online' : 'Offline', online: botReady });
+
+  socket.on('getStatus', () => {
+    socket.emit('status', { text: botReady ? 'Online' : 'Offline', online: botReady });
+  });
+
+  socket.on('sendMessage', msg => {
+    if(bot && botReady){
+      bot.chat(msg);
+      logMsg(`[Web] ${msg}`, 'chat');
+    } else {
+      messageQueue.push(msg);
+      logMsg(`[Web] Message queued: ${msg}`, 'system');
+    }
+  });
+
+  socket.on('control', async action => {
+    switch(action){
+      case 'start':
+        if(!bot){ createBot(); logMsg('🌟 Bot started via panel'); } else logMsg('⚠️ Bot already running'); break;
+      case 'stop':
+        if(bot){ bot.quit('Stopped via panel'); bot=null; botReady=false; clearInterval(autoMessageInterval); clearInterval(autoMoveInterval); autoMessageInterval=null; autoMoveInterval=null; logMsg('🛑 Bot stopped via panel'); } else logMsg('⚠️ Bot not running'); break;
+      case 'restart':
+        if(bot){ bot.quit('Restarting via panel'); bot=null; botReady=false; clearInterval(autoMessageInterval); clearInterval(autoMoveInterval); autoMessageInterval=null; autoMoveInterval=null; logMsg('🔄 Bot restarting via panel...'); setTimeout(()=>createBot(),3000); } else logMsg('⚠️ Bot not running'); break;
+    }
+    io.emit('status', { text: botReady ? 'Online' : 'Offline', online: botReady });
+  });
 });
 
+// ================== Start Servers ==================
 server.listen(PORT, ()=>console.log(`🌐 Web server running on port ${PORT}`));
+discordClient.login(discordToken);
+
 
